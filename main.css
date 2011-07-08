@@ -1,0 +1,49 @@
+*, body {
+	font-family: "lucida grande",tahoma,verdana,arial,sans-serif;
+}
+
+.navigation {
+	font-size: 2em;
+}
+
+.navigation li {
+	display: inline;
+}
+
+a {
+	color: #3B5998;
+	font-weight: normal;
+	vertical-align: text-bottom;
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+ul {
+	list-style: none;
+	margin-left: 0;
+	padding-left: 1em;
+	font-size: 11px;
+}
+
+li {
+	padding: 3px 0;
+	margin: 0;
+}
+
+.date {
+	color: gray;
+}
+
+.feed {
+	margin: 0.5em;
+	padding: 0.5em;
+	padding-left: 2.5em;
+	background-position: 0.5em 0.5em;
+}
+
+.hidden {
+	background-color: #ddd;
+}
