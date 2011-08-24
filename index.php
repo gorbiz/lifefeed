@@ -20,7 +20,12 @@ if (isset($_GET['supersecret']) && $_GET['supersecret'] == LIFEFEED_DEV_KEY) {
 }
 
 
-				
+
+// XXX Dirty hack
+function is_on_test_server() {
+    return $_SERVER['REMOTE_ADDR'] == '127.0.0.1';
+}
+
 function feed_items_from_simplepie($url) {
  	$feed = new SimplePie();
 	$feed->set_feed_url(urldecode($url));
@@ -94,11 +99,14 @@ function get_items($hideFeeds = null) {
 	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
 	$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	
+    // XXX Hack
+    $limit = is_on_test_server() ? " LIMIT 10" : "";
+    
 	return $db->query("SELECT feeds.icon, items.title, items.description, items.link, items.date
-	FROM items
-	JOIN feeds ON feeds.id = items.idFeed
-	WHERE feeds.id NOT IN (" . implode(",", $hideFeeds)  . ")
-	ORDER BY items.date DESC;")->fetchAll(PDO::FETCH_ASSOC);
+        	FROM items
+        	JOIN feeds ON feeds.id = items.idFeed
+        	WHERE feeds.id NOT IN (" . implode(",", $hideFeeds)  . ")
+        	ORDER BY items.date DESC$limit;")->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function fetch_new_items_from_all_feeds() {
@@ -166,6 +174,12 @@ function fetch_new_items_from_feed($id) {
 function get_feeds() {
 	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
 	return $db->query('SELECT feeds.id, feeds.name, feeds.url, feeds.icon, feeds.last_refreshed FROM feeds ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function get_number_of_feeds() {
+    $db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
+	$result = $db->query('SELECT COUNT(*) FROM feeds')->fetch(PDO::FETCH_NUM);
+    return $result[0];
 }
 
 function get_number_of_feed_items($id) {
@@ -286,12 +300,14 @@ if (DEV_MODE) {
 
 
 ?><!DOCTYPE html> 
-<html> 
-<head> 
+<html>
+<head>
 	<meta charset="utf-8" /> 
 	<title>Lifefeed.me</title> 
 	<link rel="stylesheet" href="main.css" type="text/css" />
 	<link rel="stylesheet" href="forms.css" type="text/css" />
+
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5.2/jquery.min.js" type="text/javascript"></script>
 
 	<script type="text/javascript">
 	  var _gaq = _gaq || [];
@@ -303,14 +319,33 @@ if (DEV_MODE) {
 	    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
 	  })();
 	</script>
+    
+    <script type="text/javascript">
+        $(document).ready(function() {
+            $(".feed-list").hide();
+            
+            $("#filter-items").keyup(function() {
+                var query = $(this).val().toLowerCase();
+                if (query.length > 2) {
+                    $(".item").each(function(index) {
+                        // TODO Search the href of the link as well
+                        $(this).css('display', (-1 != jQuery(".item-link, .item-description", this).text().toLowerCase().indexOf(query)) ? 'block' : 'none');
+                    });
+                } else if (query.length == 0) {
+                    $(".item").show();
+                }
+            });
+        });
+    </script>
 
 </head>
 <body>
 
-<h1>Lifefeed.me</h1>
+<h1 style="float:left;"><a href="index.php" style="font-weight: bold; color: black;">Lifefeed.me</a></h1>
 
-<ul class="navigation">
-	<li><a href="index.php">Home</a></li>
+<div style="float:left; margin: 21px -0.5em 21px 0.5em; font-size: 2em;">|</div>
+
+<ul class="navigation" style="float:left; margin: 21px 0;">
 	<li><a href="index.php?hide=none">Show all</a></li>
 	<li><a href="index.php?hide=all">Hide all</a></li>
 	<?php if (DEV_MODE) : ?>
@@ -319,7 +354,7 @@ if (DEV_MODE) {
 	<?php endif; ?>
 </ul>
 
-<h2>Feeds</h2>
+<h2 style="clear:both;">Feeds</h2>
 
 <?php if (DEV_MODE): ?>
 <h3>Add a feed</h3>
@@ -342,7 +377,8 @@ if (DEV_MODE) {
 </form>
 <?php endif; ?>
 
-<ul>
+<p>This lifefeed has <?php echo get_number_of_feeds(); ?> sources | <a href="#" onclick="$('.feed-list').toggle(); $(this).html($('.feed-list').is(':visible') ? 'boooring, hide!' : 'show me them!');">show me them!</a></p>
+<ul class="feed-list">
 	<?php foreach (get_feeds() as $feed): ?>
 		<li class="feed<?php echo is_feed_hidden($feed['id']) ? " hidden" : "";  ?>" style="background-image: url(<?php echo $feed['icon']; ?>); background-repeat: no-repeat; <?php echo !$feed['last_refreshed'] ? "background-color: #fcc;" : ""; ?>">
 			
@@ -370,12 +406,17 @@ if (DEV_MODE) {
 <hr style="clear:both;" />
 
 <h2>Events</h2>
-<ul>
+
+<form action="index.php" method="get">
+    <input name="filter-items" id="filter-items" type="text" placeholder="filter" />
+</form>
+
+<ul class="items">
 	<?php foreach (get_items(get_hidden()) as $item) : ?>
-	<li style="background: url(<?php echo $item['icon']; ?>) no-repeat; padding-left: 20px;">
-		<a href="<?php echo $item['link']; ?>" class="title"><?php echo $item['title']; ?></a><br />
+	<li class="item" style="background: url(<?php echo $item['icon']; ?>) no-repeat; padding-left: 20px;">
+		<a href="<?php echo $item['link']; ?>" class="title item-link"><?php echo $item['title']; ?></a><br />
 		<?php if ($item['description'] != $item['title']) : ?>
-		<div><?php echo $item['description']; ?></div>
+		<div class="item-description"><?php echo $item['description']; ?></div>
 		<?php endif; ?>
 		<span class="date"><?php echo facebook_style_timestamp($item['date']); ?></span>
 	</li>
