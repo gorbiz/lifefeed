@@ -1,16 +1,25 @@
 <?php
 
-define('DEV_MODE', false);
-
 set_include_path(get_include_path() . PATH_SEPARATOR . 'simplepie/');
 /**
  * Contains only something like:
  * LIFEFEED_DB_USERNAME = 'lifefeed';
  * define('LIFEFEED_DB_USERNAME', 'username');
  * define('LIFEFEED_DB_PASSWORD', 'secret');
+ * define('LIFEFEED_DEV_KEY', 'something');
  */
 include 'lifefeed/credentials.php';
 include 'SimplePieAutoloader.php';
+
+// FIXME This is a temporary dirty hack
+if (isset($_GET['supersecret']) && $_GET['supersecret'] == LIFEFEED_DEV_KEY) {
+        define('DEV_MODE', true);
+        ini_set('display_errors', true);
+} else {
+        define('DEV_MODE', false);
+}
+
+
 				
 function feed_items_from_simplepie($url) {
  	$feed = new SimplePie();
