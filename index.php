@@ -1,5 +1,7 @@
 <?php
 
+ini_set('memory_limit', '64M');
+
 set_include_path(get_include_path() . PATH_SEPARATOR . 'simplepie/');
 /**
  * Contains only something like:
