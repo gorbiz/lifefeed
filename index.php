@@ -101,12 +101,35 @@ function get_items($hideFeeds = null) {
 	
     // XXX Hack
     $limit = is_on_test_server() ? " LIMIT 10" : "";
+    $limit = "";
     
-	return $db->query("SELECT feeds.icon, items.title, items.description, items.link, items.date
+	$result = $db->query("SELECT feeds.icon, items.title, items.description, items.link, items.date
         	FROM items
         	JOIN feeds ON feeds.id = items.idFeed
         	WHERE feeds.id NOT IN (" . implode(",", $hideFeeds)  . ")
         	ORDER BY items.date DESC$limit;")->fetchAll(PDO::FETCH_ASSOC);
+
+    // Tidy up descriptions, we want valid HTML
+    // XXX Should not be done on every request, should be done in the background and stored in the database or something.
+    $func = function($value) {
+        $config = array(
+            'doctype' => 'strict',
+            'show-body-only' => true,
+            'alt-text' => '',
+
+            'clean' => true,
+        );
+        $value['title'] = tidy_repair_string($value['title'], $config);
+        $value['description'] = tidy_repair_string($value['description'], $config);
+        
+        $value['description'] = preg_replace('/width="(\d*)" valign="top"/is', 'style="width: $1px; vertial-align: top;"', $value['description']);
+        $value['description'] = str_replace('valign="top"', 'style="vertical-align: top;"', $value['description']);
+        $value['description'] = str_replace('img align="top"', 'img style="vertical-align: top;"', $value['description']);
+        $value['description'] = str_replace('cellspacing="0" cellpadding="0" border="0"', 'style="border-spacing: 0; border-collapse:collapse; border: 0;"', $value['description']);
+        return $value;
+    };
+    
+    return array_map($func, $result);
 }
 
 function fetch_new_items_from_all_feeds() {
