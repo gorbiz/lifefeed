@@ -178,7 +178,7 @@ function fetch_new_items_from_feed($id) {
 	foreach ($items as $item) {
 
 		$sql = 'SELECT * FROM items WHERE idFeed = :idFeed AND title = :title AND description = :description AND link = :link AND date = :date';
-		$sth = $db->prepare($sql, array(PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY));
+		$sth = DB::get()->prepare($sql, array(PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY));
 		$sth->execute(array(
 			':idFeed'	=> $row['id'],
 			':title'	=> $item->get_title(),
@@ -197,7 +197,7 @@ function fetch_new_items_from_feed($id) {
 		log_event("Got a new item: '" . $item->get_title() . "'.");
 
 		$sql = 'INSERT INTO items (idFeed, title, description, link, date) VALUES (:idFeed, :title, :description, :link, :date);';
-		$sth = $db->prepare($sql, array(PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY));
+		$sth = DB::get()->prepare($sql, array(PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY));
 		$sth->execute(array(
 			':idFeed'	=> $row['id'],
 			':title'	=> $item->get_title(),
