@@ -322,7 +322,7 @@ if (DEV_MODE) {
 				echo "<p>ERROR: That feed already exists... sorry :/.</p>";
 			} else {
 				DB::get()->query("INSERT INTO feeds SET name='" . trim($_POST['name']) . "', url='" . trim($_POST['url']) . "', icon='" . trim($_POST['icon']) . "'");
-				fetch_new_items_from_feed($db->lastInsertId());
+				fetch_new_items_from_feed(DB::get()->lastInsertId());
 			}
 		}
 	}
