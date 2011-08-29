@@ -179,10 +179,11 @@ function fetch_new_items_from_feed($id) {
 
 		$sql = 'SELECT * FROM items WHERE idFeed = :idFeed AND title = :title AND description = :description AND link = :link AND date = :date';
 		$sth = DB::get()->prepare($sql, array(PDO::ATTR_CURSOR => PDO::CURSOR_FWDONLY));
+        $description = $item->get_description() ? $item->get_description() : $item->get_title();
 		$sth->execute(array(
 			':idFeed'	=> $row['id'],
 			':title'	=> $item->get_title(),
-			':description'	=> $item->get_description(),
+			':description'	=> $description,
 			':link'	=> $item->get_link(),
 			':date'	=> date('Y-m-d H:i:s', strtotime($item->get_date()))
 			));
@@ -201,7 +202,7 @@ function fetch_new_items_from_feed($id) {
 		$sth->execute(array(
 			':idFeed'	=> $row['id'],
 			':title'	=> $item->get_title(),
-			':description'	=> $item->get_description(),
+			':description'	=> $description,
 			':link'	=> $item->get_link(),
 			':date'	=> date('Y-m-d H:i:s', strtotime($item->get_date()))
 			));
