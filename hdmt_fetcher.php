@@ -59,10 +59,7 @@ function reformat_date($string) {
     $ampm = $matches[5];
     
     // They appear to be on the american west coast, hence the -0700
-    $date = strtotime("$year-$month-$day $time -0700");
-    if (strtoupper($ampm) == 'PM') {
-        $date += 60*60*12;
-    }
+    $date = strtotime("$year-$month-$day $time$ampm -0700");
 
     return date("r", $date);
 }
