@@ -1,17 +1,18 @@
 <?php
 
-ini_set('memory_limit', '64M');
-
 set_include_path(get_include_path() . PATH_SEPARATOR . 'simplepie/');
 /**
  * Contains only something like:
- * LIFEFEED_DB_USERNAME = 'lifefeed';
  * define('LIFEFEED_DB_USERNAME', 'username');
  * define('LIFEFEED_DB_PASSWORD', 'secret');
  * define('LIFEFEED_DEV_KEY', 'something');
  */
 include 'lifefeed/credentials.php';
 include 'SimplePieAutoloader.php';
+
+ini_set('memory_limit', '64M');
+
+header('Content-Type: text/html; charset=utf-8');
 
 // FIXME This is a temporary dirty hack
 if (isset($_GET['supersecret']) && $_GET['supersecret'] == LIFEFEED_DEV_KEY) {
@@ -26,6 +27,19 @@ if (isset($_GET['supersecret']) && $_GET['supersecret'] == LIFEFEED_DEV_KEY) {
 // XXX Dirty hack
 function is_on_test_server() {
     return $_SERVER['REMOTE_ADDR'] == '127.0.0.1';
+}
+
+class DB {
+    private static $db;
+    public static function get() {
+        if (false == (self::$db instanceof PDO)) {
+            self::$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
+            self::$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	        self::$db->query("SET NAMES utf8;");
+            self::$db->query("SET CHARACTER SET utf8;");            
+        }
+        return self::$db;
+    }
 }
 
 function feed_items_from_simplepie($url) {
@@ -98,14 +112,12 @@ function facebook_style_timestamp($timestamp_string)
 
 function get_items($hideFeeds = null) {
 	if (!$hideFeeds) $hideFeeds = array(0);
-	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-	$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	
+    
     // XXX Hack
     $limit = is_on_test_server() ? " LIMIT 10" : "";
     $limit = "";
     
-	$result = $db->query("SELECT feeds.icon, items.title, items.description, items.link, items.date
+	$result = DB::get()->query("SELECT feeds.icon, items.title, items.description, items.link, items.date
         	FROM items
         	JOIN feeds ON feeds.id = items.idFeed
         	WHERE feeds.id NOT IN (" . implode(",", $hideFeeds)  . ")
@@ -118,8 +130,10 @@ function get_items($hideFeeds = null) {
             'doctype' => 'strict',
             'show-body-only' => true,
             'alt-text' => '',
-
             'clean' => true,
+            'char-encoding' => 'utf8',
+            'input-encoding' => 'utf8',
+            'output-encoding' => 'utf8'
         );
         $value['title'] = tidy_repair_string($value['title'], $config);
         $value['description'] = tidy_repair_string($value['description'], $config);
@@ -135,8 +149,7 @@ function get_items($hideFeeds = null) {
 }
 
 function fetch_new_items_from_all_feeds() {
-	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-	$result = $db->query('SELECT id, url FROM feeds');
+    $result = DB::get()->query('SELECT id, url FROM feeds');
 	foreach($result as $row) {
 		log_event("Fetching items from feed #" . $row['id'] . " - " . $row['url']);
 		fetch_new_items_from_feed($row['id']);
@@ -144,8 +157,7 @@ function fetch_new_items_from_all_feeds() {
 }
 
 function fetch_new_items_from_feed($id) {
-	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-	$row = $db->query("SELECT id, url FROM feeds WHERE id=$id")->fetch(PDO::FETCH_ASSOC);
+    $row = DB::get()->query("SELECT id, url FROM feeds WHERE id=$id")->fetch(PDO::FETCH_ASSOC);
 
 	log_event("Fetching " . $row['url'] . "...");
 
@@ -160,7 +172,7 @@ function fetch_new_items_from_feed($id) {
 	log_event("Got " . count($items) . " items.");
 
 	if (count($items)) {
-		$db->query('UPDATE feeds SET last_refreshed = NOW() WHERE id = ' . $row['id']);
+		DB::get()->query('UPDATE feeds SET last_refreshed = NOW() WHERE id = ' . $row['id']);
 	}
 
 	foreach ($items as $item) {
@@ -197,19 +209,16 @@ function fetch_new_items_from_feed($id) {
 }
 
 function get_feeds() {
-	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-	return $db->query('SELECT feeds.id, feeds.name, feeds.url, feeds.icon, feeds.last_refreshed FROM feeds ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);
+	return DB::get()->query('SELECT feeds.id, feeds.name, feeds.url, feeds.icon, feeds.last_refreshed FROM feeds ORDER BY id DESC')->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function get_number_of_feeds() {
-    $db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-	$result = $db->query('SELECT COUNT(*) FROM feeds')->fetch(PDO::FETCH_NUM);
+	$result = DB::get()->query('SELECT COUNT(*) FROM feeds')->fetch(PDO::FETCH_NUM);
     return $result[0];
 }
 
 function get_number_of_feed_items($id) {
-	$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-	$result =  $db->query('SELECT COUNT(*) FROM items WHERE idFeed=' . $id)->fetch(PDO::FETCH_NUM);
+	$result =  DB::get()->query('SELECT COUNT(*) FROM items WHERE idFeed=' . $id)->fetch(PDO::FETCH_NUM);
 	return $result[0];
 }
 
@@ -287,22 +296,20 @@ if (DEV_MODE) {
 	}
 
 	if (isset($_GET['clear'])) {
-		$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
 		if ($_GET['clear'] == 'all') {
-			$db->query('TRUNCATE items');
+			DB::get()->query('TRUNCATE items');
 		} else {
-			$db->query('DELETE FROM items WHERE idFeed=' . $_GET['clear']);
+			DB::get()->query('DELETE FROM items WHERE idFeed=' . $_GET['clear']);
 		}
 	}
 
 	if (isset($_GET['remove'])) {
-		$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
 		if ($_GET['remove'] == 'all') {
-			$db->query('TRUNCATE feeds');
-			$db->query('TRUNCATE items');
+			DB::get()->query('TRUNCATE feeds');
+			DB::get()->query('TRUNCATE items');
 		} else {
-			$db->query('DELETE FROM items WHERE idFeed=' . $_GET['remove']);
-			$db->query('DELETE FROM feeds WHERE id=' . $_GET['remove']);
+			DB::get()->query('DELETE FROM items WHERE idFeed=' . $_GET['remove']);
+			DB::get()->query('DELETE FROM feeds WHERE id=' . $_GET['remove']);
 		}
 	}
 
@@ -310,12 +317,10 @@ if (DEV_MODE) {
 		if (empty($_POST['name']) || empty($_POST['url']) || empty($_POST['icon'])) {
 			echo "<p>ERROR: You need to fill in all the fields, sorry...</p>";
 		} else {
-			$db = new PDO('mysql:host=localhost;dbname=lifefeed', LIFEFEED_DB_USERNAME, LIFEFEED_DB_PASSWORD);
-			
-			if (count($db->query("SELECT * FROM feeds WHERE url='" . trim($_POST['url']) . "'")->fetchAll())) {
+			if (count(DB::get()->query("SELECT * FROM feeds WHERE url='" . trim($_POST['url']) . "'")->fetchAll())) {
 				echo "<p>ERROR: That feed already exists... sorry :/.</p>";
-			} else {		
-				$db->query("INSERT INTO feeds SET name='" . trim($_POST['name']) . "', url='" . trim($_POST['url']) . "', icon='" . trim($_POST['icon']) . "'");
+			} else {
+				DB::get()->query("INSERT INTO feeds SET name='" . trim($_POST['name']) . "', url='" . trim($_POST['url']) . "', icon='" . trim($_POST['icon']) . "'");
 				fetch_new_items_from_feed($db->lastInsertId());
 			}
 		}
@@ -327,7 +332,7 @@ if (DEV_MODE) {
 ?><!DOCTYPE html> 
 <html>
 <head>
-	<meta charset="utf-8" /> 
+	<meta charset="utf-8" />
 	<title>Lifefeed.me</title> 
 	<link rel="stylesheet" href="main.css" type="text/css" />
 	<link rel="stylesheet" href="forms.css" type="text/css" />
